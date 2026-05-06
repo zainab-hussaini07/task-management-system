@@ -1,76 +1,87 @@
-import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
+"use client";
 
-export async function POST(req: Request) {
-  try {
-    await connectDB();
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-    const { email, password } = await req.json();
+export default function LoginPage() {
+  const router = useRouter();
 
-    if (!email || !password) {
-      return NextResponse.json(
-        { message: "Email and password are required" },
-        { status: 400 }
-      );
-    }
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+  });
 
-    const user = await User.findOne({ email });
+  const [error, setError] = useState("");
 
-    if (!user) {
-      return NextResponse.json(
-        { message: "Invalid email or password" },
-        { status: 401 }
-      );
-    }
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
 
-    const isPasswordCorrect = await bcrypt.compare(password, user.password);
-
-    if (!isPasswordCorrect) {
-      return NextResponse.json(
-        { message: "Invalid email or password" },
-        { status: 401 }
-      );
-    }
-
-    if (!process.env.JWT_SECRET) {
-      return NextResponse.json(
-        { message: "JWT_SECRET is missing" },
-        { status: 500 }
-      );
-    }
-
-    const token = jwt.sign(
-      { userId: user._id.toString() },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
-
-    const response = NextResponse.json(
-      { message: "Login successful" },
-      { status: 200 }
-    );
-
-    response.cookies.set("token", token, {
-      httpOnly: true,
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(form),
     });
 
-    return response;
-  } catch (error) {
-    console.error("LOGIN ERROR:", error);
+let data: any = {};
 
-    return NextResponse.json(
-      {
-        message:
-          error instanceof Error ? error.message : "Failed to login",
-      },
-      { status: 500 }
-    );
+const text = await res.text();
+
+try {
+  data = text ? JSON.parse(text) : {};
+} catch {
+  data = {};
+}
+    if (!res.ok) {
+      setError(data.message || "Login failed");
+      return;
+    }
+
+    router.push("/dashboard");
   }
+
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-md bg-white p-8 rounded-xl shadow"
+      >
+        <h1 className="text-2xl font-bold mb-6 text-center">Login</h1>
+
+        {error && (
+          <p className="mb-4 text-sm text-red-600 text-center">{error}</p>
+        )}
+
+        <input
+          type="email"
+          placeholder="Email"
+          className="w-full border p-3 rounded mb-4"
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+        />
+
+        <input
+          type="password"
+          placeholder="Password"
+          className="w-full border p-3 rounded mb-4"
+          value={form.password}
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+        />
+
+        <button className="w-full bg-blue-600 text-white py-3 rounded font-medium">
+          Login
+        </button>
+
+        <p className="text-sm text-center mt-4">
+          Don&apos;t have an account?{" "}
+          <Link href="/signup" className="text-blue-600">
+            Sign up
+          </Link>
+        </p>
+      </form>
+    </main>
+  );
 }
