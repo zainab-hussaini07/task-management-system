@@ -35,9 +35,16 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!process.env.JWT_SECRET) {
+      return NextResponse.json(
+        { message: "JWT_SECRET is missing" },
+        { status: 500 }
+      );
+    }
+
     const token = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET as string,
+      { userId: user._id.toString() },
+      process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
@@ -50,14 +57,19 @@ export async function POST(req: Request) {
       httpOnly: true,
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
     });
 
     return response;
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("LOGIN ERROR:", error);
 
     return NextResponse.json(
-      { message: "Something went wrong" },
+      {
+        message:
+          error instanceof Error ? error.message : "Failed to login",
+      },
       { status: 500 }
     );
   }
